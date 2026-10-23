@@ -432,7 +432,7 @@ requestAnimationFrame(loop);
 <div id="sk" hidden><span id="tm2">0:00 / 0:00</span><input id="seek" type="range" min="0" max="1000" value="0"></div>
 <div id="inv" class="box" hidden><h3>👥 Dosto ko bulao</h3>
 <button id="io1" class="go2">📋 Code copy karo</button>
-<div id="ibx" hidden><div id="mycode">…</div><button id="icp">Copy code</button><small>Ye code dost ko bhejo, wo "Entry" se aapke map me aayega.</small></div>
+<div id="ibx" hidden><div id="mycode">…</div><div id="nst" style="font-size:12px;color:#ffd27a">🔴 Connect ho raha hai…</div><button id="icp">Copy code</button><small>Ye code dost ko bhejo, wo "Entry" se aapke map me aayega.</small></div>
 <button id="io2" class="go2">🚪 Entry (dost ka code)</button>
 <div id="ien" hidden><div class="row"><input id="icd" maxlength="8" placeholder="Dost ka code" style="width:140px"><button id="ijo" class="go2">Enter</button></div></div>
 <button id="ix">✕ Band</button></div>
@@ -507,11 +507,18 @@ function onMsg(m,c){
  else if(m.t=='l'){gone(m.id);relay(m,c)}
 }
 function drop(c){if(c===hostConn){Object.keys(rem).forEach(gone);hostConn=null;conns=[];toast('Host game se chala gaya')}else if(conns.includes(c)){conns=conns.filter(x=>x!==c);gone(c.pid);relay({t:'l',id:c.pid},null)}}
-function net(){if(typeof Peer=='undefined'){toast('🌐 Multiplayer ke liye internet chahiye');return}mk()}
-function mk(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';myCode=Array.from({length:5},()=>A[rr()*A.length|0]).join('');peer=new Peer(PFX+myCode);
- peer.on('open',id=>{myId=id;$('mycode').textContent=myCode;cnt()});
+const st=t=>{const e=$('nst');if(e)e.textContent=t};
+function loadPeer(cb){const u=['https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js','https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js','https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js'];let i=0;(function t(){if(typeof Peer!='undefined')return cb(1);if(i>=u.length)return cb(0);const e=document.createElement('script');e.src=u[i++];e.onload=t;e.onerror=t;document.head.appendChild(e)})()}
+function genCode(){const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';myCode=Array.from({length:5},()=>A[rr()*A.length|0]).join('');$('mycode').textContent=myCode}
+let rt2;function retry(){clearTimeout(rt2);rt2=setTimeout(()=>{try{peer&&peer.destroy()}catch(e){}myId=null;net()},4000)}
+function net(){if(!myCode)genCode();st('🔴 Server se connect ho raha hai…');loadPeer(ok=>{if(!ok){st('🔴 Internet/PeerJS nahi mila — dubara try kar raha hai…');retry();return}mk()})}
+function mk(){const ice={config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'},{urls:'stun:global.stun.twilio.com:3478'}]}};
+ try{peer=new Peer(PFX+myCode,ice)}catch(e){st('🔴 Error — dubara try…');retry();return}
+ peer.on('open',id=>{myId=id;st('🟢 Online — code taiyaar hai');cnt()});
  peer.on('connection',c=>{c.on('data',m=>onMsg(m,c));c.on('close',()=>drop(c));c.on('error',()=>drop(c))});
- peer.on('error',e=>{if(e.type=='unavailable-id'){try{peer.destroy()}catch(x){}mk()}else if(e.type=='peer-unavailable')toast('❌ Ye code nahi mila');else if(!myId)toast('🌐 Online connect nahi ho paya')})}
+ peer.on('disconnected',()=>{st('🟡 Dobara jud raha hai…');setTimeout(()=>{try{peer.reconnect()}catch(e){}},1500)});
+ peer.on('close',()=>{myId=null;st('🔴 Connection band — dubara try…');retry()});
+ peer.on('error',e=>{if(e.type=='unavailable-id'){try{peer.destroy()}catch(x){}genCode();mk()}else if(e.type=='peer-unavailable')toast('❌ Ye code nahi mila ya dost offline hai');else if(!myId){st('🔴 Server nahi mila ('+e.type+') — dubara try…');retry()}})}
 function join(code){code=code.trim().toUpperCase();if(!myId)return toast('Thoda ruko, aapka code ban raha hai…');if(conns.length||hostConn)return toast('Pehle current room chhodo (page refresh)');if(code.length<4)return toast('Code poora likho');if(code==myCode)return toast('Ye aapka apna code hai 😄');let ok=0;const c=peer.connect(PFX+code,{reliable:true});c.on('open',()=>{ok=1;hostConn=c;conns=[c];c.send({t:'hi',id:myId,name:myName})});c.on('data',m=>onMsg(m,c));c.on('close',()=>drop(c));c.on('error',()=>drop(c));setTimeout(()=>{if(!ok){toast('Code galat ya dost offline hai');try{c.close()}catch(e){}}},9000)}
 setInterval(()=>{if(myId&&conns.length)send({t:'p',id:myId,x:pl.x,z:pl.z,y:pl.yaw,o:loc=='out'?1:0})},100);
 $('invb').onclick=()=>{$('inv').hidden=false;$('ibx').hidden=true;$('ien').hidden=true};
